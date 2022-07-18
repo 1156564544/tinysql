@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"math"
+	"reflect"
 	"time"
 
 	"github.com/pingcap/errors"
@@ -98,6 +99,32 @@ func DecodeRecordKey(key kv.Key) (tableID int64, handle int64, err error) {
 	 *   5. understanding the coding rules is a prerequisite for implementing this function,
 	 *      you can learn it in the projection 1-2 course documentation.
 	 */
+	k := []byte(key)
+	if len(k) != RecordRowKeyLen {
+		err = errInvalidRecordKey.GenWithStack("The length (%v) is illegal!", len(k))
+		return
+	}
+	if !reflect.DeepEqual(k[:tablePrefixLength], tablePrefix) {
+		err = errInvalidRecordKey.GenWithStack("The table prefix (%s) is illegal!", k[:tablePrefixLength])
+		return
+	}
+	if !reflect.DeepEqual(k[prefixLen-recordPrefixSepLength:prefixLen], recordPrefixSep) {
+		err = errInvalidRecordKey.GenWithStack("The record prefix (%v) is illegal!", k[prefixLen:prefixLen+recordPrefixSepLength])
+		return
+	}
+	_, tableID, e := codec.DecodeInt(k[tablePrefixLength : prefixLen-recordPrefixSepLength])
+	if e != nil {
+		tableID = 0
+		err = e
+		return
+	}
+	_, handle, e = codec.DecodeInt(k[prefixLen:])
+	if e != nil {
+		tableID = 0
+		handle = 0
+		err = e
+		return
+	}
 	return
 }
 
@@ -148,6 +175,33 @@ func DecodeIndexKeyPrefix(key kv.Key) (tableID int64, indexID int64, indexValues
 	 *   5. understanding the coding rules is a prerequisite for implementing this function,
 	 *      you can learn it in the projection 1-2 course documentation.
 	 */
+	k := []byte(key)
+	if len(k) < prefixLen+idLen {
+		err = errInvalidRecordKey.GenWithStack("Invalid key length (%v)", len(k))
+		return
+	}
+	if !reflect.DeepEqual(k[:tablePrefixLength], tablePrefix) {
+		err = errInvalidRecordKey.GenWithStack("The table prefix (%s) is illegal!", k[:tablePrefixLength])
+		return
+	}
+	if !reflect.DeepEqual(k[prefixLen-recordPrefixSepLength:prefixLen], indexPrefixSep) {
+		err = errInvalidRecordKey.GenWithStack("The index prefix (%v) is illegal!", k[prefixLen:prefixLen+recordPrefixSepLength])
+		return
+	}
+	_, tableID, e := codec.DecodeInt(k[tablePrefixLength : prefixLen-recordPrefixSepLength])
+	if e != nil {
+		tableID = 0
+		err = e
+		return
+	}
+	_, indexID, e = codec.DecodeInt(k[prefixLen : prefixLen+idLen])
+	if e != nil {
+		tableID = 0
+		indexID = 0
+		err = e
+		return
+	}
+	indexValues = k[prefixLen+idLen:]
 	return tableID, indexID, indexValues, nil
 }
 

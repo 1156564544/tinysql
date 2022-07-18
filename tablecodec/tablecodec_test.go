@@ -118,6 +118,7 @@ func (s *testTableCodecSuite) TestRecordKey(c *C) {
 
 	encodedHandle := codec.EncodeInt(nil, math.MaxUint32)
 	rowKey := EncodeRowKey(tableID, encodedHandle)
+	//log.Printf("rowkey: %v \n", []byte(rowKey))
 	c.Assert([]byte(tableKey), BytesEquals, []byte(rowKey))
 	tTableID, handle, err := DecodeRecordKey(rowKey)
 	c.Assert(err, IsNil)
